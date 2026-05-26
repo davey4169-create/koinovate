@@ -10,6 +10,7 @@ const adminLinks = [
   { href: '/admin/learning',    icon: '📚', label: 'Learning' },
   { href: '/admin/analytics',   icon: '📈', label: 'Analytics' },
   { href: '/admin/tasks',       icon: '🪙', label: 'Tasks' },
+  { href: '/admin/settings', icon: '⚙️', label: 'Settings' },
 ]
 
 export default function AdminLayout({ children }) {
