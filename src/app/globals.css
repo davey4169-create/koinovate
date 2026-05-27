@@ -104,8 +104,23 @@ h1, h2, h3, h4, h5, h6 { font-family: "Syne", sans-serif; line-height: 1.15; }
   .mobile-only  { display: flex !important; }
   .bottom-nav   { display: flex !important; }
 
+  html, body {
+    font-size: 16px;
+    overflow-x: hidden;
+  }
+
+  main, section, article {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+
+  img, picture, video, svg { max-width: 100%; height: auto; }
+  button, input, select, textarea { min-height: 44px; font-size: 16px; }
+  body { padding-bottom: env(safe-area-inset-bottom); }
+
   /* Tighten spacing on mobile */
-  .section-padding { padding: 40px 16px !important; }
+  .section-padding { padding: 32px 16px !important; }
+  .content-wrap { padding: 0 16px !important; }
 
   /* Stack grids */
   .grid-2col { grid-template-columns: 1fr !important; }
@@ -117,10 +132,15 @@ h1, h2, h3, h4, h5, h6 { font-family: "Syne", sans-serif; line-height: 1.15; }
   .dashboard-main { padding: 16px !important; }
 
   /* Hero text */
-  h1 { line-height: 1.1 !important; }
+  h1 { font-size: clamp(28px, 8vw, 36px) !important; line-height: 1.1 !important; }
+  h2 { font-size: clamp(22px, 7vw, 30px) !important; line-height: 1.15 !important; }
 
   /* Tables scroll */
   .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  .card, .glass, .glass-strong { border-radius: 22px !important; }
+  .feature-grid { gap: 18px !important; }
+  .hero-btns { flex-direction: column !important; gap: 14px !important; }
 }
 
 @media (max-width: 480px) {

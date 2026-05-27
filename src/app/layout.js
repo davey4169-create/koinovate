@@ -1,8 +1,9 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import Image from 'next/image'
+import { useUserStore } from '@/store/userStore'
 import './globals.css'
 
 // ─── NAVIGATION DATA ──────────────────────────────────────────
@@ -32,7 +33,35 @@ function Header() {
   const [mobileOpen,  setMobileOpen]  = useState(false)
   const [moreOpen,    setMoreOpen]    = useState(false)
   const pathname = usePathname()
+  const router = useRouter()
   const moreRef  = useRef(null)
+  const isLoggedIn = useUserStore(state => state.isLoggedIn)
+  const hasActivePlan = useUserStore(state => state.hasActivePlan)
+
+  const handleNavClick = (href, event) => {
+    if (event) event.preventDefault()
+    if (href === '/auth') {
+      setMobileOpen(false)
+      setMoreOpen(false)
+      router.push('/auth')
+      return
+    }
+    if (!isLoggedIn) {
+      setMobileOpen(false)
+      setMoreOpen(false)
+      router.push('/auth')
+      return
+    }
+    if (!hasActivePlan) {
+      setMobileOpen(false)
+      setMoreOpen(false)
+      router.push('/membership')
+      return
+    }
+    setMobileOpen(false)
+    setMoreOpen(false)
+    router.push(href)
+  }
 
   useEffect(() => {
     const fn = () => setScrolled(window.scrollY > 20)
@@ -73,7 +102,7 @@ function Header() {
         {/* Desktop Nav */}
         <nav className="desktop-nav" style={{ display: 'flex', gap: 22, alignItems: 'center' }}>
           {mainLinks.slice(0, 5).map(l => (
-            <Link key={l.href} href={l.href} style={{
+            <Link key={l.href} href={l.href} onClick={e => handleNavClick(l.href, e)} style={{
               color: pathname === l.href ? '#64ffda' : '#8892b0',
               textDecoration: 'none', fontSize: 13, fontWeight: 500,
               fontFamily: '"DM Sans", sans-serif', transition: 'color 0.2s',
@@ -98,7 +127,7 @@ function Header() {
                 boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
               }}>
                 {mainLinks.slice(5).map(l => (
-                  <Link key={l.href} href={l.href} onClick={() => setMoreOpen(false)} style={{
+                  <Link key={l.href} href={l.href} onClick={e => handleNavClick(l.href, e)} style={{
                     display: 'flex', alignItems: 'center', gap: 10,
                     padding: '11px 14px', borderRadius: 10,
                     color: '#a8b2d8', textDecoration: 'none', fontSize: 13,
@@ -156,7 +185,7 @@ function Header() {
 
           <nav style={{ padding: '16px 12px' }}>
             {mainLinks.map(l => (
-              <Link key={l.href} href={l.href} onClick={() => setMobileOpen(false)} style={{
+              <Link key={l.href} href={l.href} onClick={e => handleNavClick(l.href, e)} style={{
                 display: 'flex', alignItems: 'center', gap: 14,
                 padding: '15px 16px', borderRadius: 12, marginBottom: 4,
                 color: pathname === l.href ? '#64ffda' : '#a8b2d8',
@@ -197,7 +226,7 @@ function BottomNav() {
   const pathname = usePathname()
   const [moreOpen, setMoreOpen] = useState(false)
 
-  if (pathname.startsWith('/admin')) return null
+  if (!pathname.startsWith('/dashboard') || pathname.startsWith('/admin')) return null
 
   return (
     <>
@@ -335,7 +364,7 @@ function Footer() {
         </div>
 
         <div style={{ borderTop: '1px solid rgba(100,255,218,0.07)', paddingTop: 24, display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
-          <p style={{ color: '#8892b0', fontSize: 12, fontFamily: '"DM Sans", sans-serif' }}>© 2025 KOINOVATE Technologies Ltd. All rights reserved.</p>
+          <p style={{ color: '#8892b0', fontSize: 12, fontFamily: '"DM Sans", sans-serif' }}>© 2026 KOINOVATE Technologies Ltd. All rights reserved.</p>
           <p style={{ color: 'rgba(136,146,176,0.4)', fontSize: 12, fontFamily: '"DM Sans", sans-serif' }}>Secured · Scalable · Futuristic</p>
         </div>
       </div>
