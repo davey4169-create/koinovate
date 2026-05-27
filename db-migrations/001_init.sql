@@ -173,18 +173,14 @@ ALTER TABLE referrals ENABLE ROW LEVEL SECURITY;
 -- RLS Policies
 -- Users can read their own profile
 CREATE POLICY "Users can read own profile" ON users
-  FOR SELECT USING (
-    auth.uid() = id OR EXISTS (
-      SELECT 1 FROM public.users u WHERE u.id = auth.uid() AND u.role = 'admin'
-    )
-  );
+  FOR SELECT USING (auth.uid() = id OR auth.uid() IN (
+    SELECT id FROM users WHERE role = 'admin'
+  ));
 
 -- Admins can read all users
 CREATE POLICY "Admins can read all users" ON users
   FOR SELECT USING (
-    EXISTS (
-      SELECT 1 FROM public.users u WHERE u.id = auth.uid() AND u.role = 'admin'
-    )
+    auth.uid() IN (SELECT id FROM users WHERE role = 'admin')
   );
 
 -- Users can read active surveys based on tier
@@ -192,8 +188,8 @@ CREATE POLICY "Users can read surveys" ON surveys
   FOR SELECT USING (
     status = 'active' AND (
       min_tier = 'free' OR
-      EXISTS (
-        SELECT 1 FROM public.users u WHERE u.id = auth.uid() AND u.membership_active = true
+      auth.uid() IN (
+        SELECT id FROM users WHERE membership_active = true
       )
     )
   );
@@ -201,9 +197,7 @@ CREATE POLICY "Users can read surveys" ON surveys
 -- Admins can manage surveys
 CREATE POLICY "Admins manage surveys" ON surveys
   USING (
-    EXISTS (
-      SELECT 1 FROM public.users u WHERE u.id = auth.uid() AND u.role = 'admin'
-    )
+    auth.uid() IN (SELECT id FROM users WHERE role = 'admin')
   );
 
 -- Similar policies for courses and tasks...
@@ -211,34 +205,30 @@ CREATE POLICY "Users can read courses" ON courses
   FOR SELECT USING (
     status = 'active' AND (
       min_tier = 'free' OR
-      EXISTS (
-        SELECT 1 FROM public.users u WHERE u.id = auth.uid() AND u.membership_active = true
+      auth.uid() IN (
+        SELECT id FROM users WHERE membership_active = true
       )
     )
   );
 
 CREATE POLICY "Admins manage courses" ON courses
   USING (
-    EXISTS (
-      SELECT 1 FROM public.users u WHERE u.id = auth.uid() AND u.role = 'admin'
-    )
+    auth.uid() IN (SELECT id FROM users WHERE role = 'admin')
   );
 
 CREATE POLICY "Users can read tasks" ON tasks
   FOR SELECT USING (
     status = 'active' AND (
       min_tier = 'free' OR
-      EXISTS (
-        SELECT 1 FROM public.users u WHERE u.id = auth.uid() AND u.membership_active = true
+      auth.uid() IN (
+        SELECT id FROM users WHERE membership_active = true
       )
     )
   );
 
 CREATE POLICY "Admins manage tasks" ON tasks
   USING (
-    EXISTS (
-      SELECT 1 FROM public.users u WHERE u.id = auth.uid() AND u.role = 'admin'
-    )
+    auth.uid() IN (SELECT id FROM users WHERE role = 'admin')
   );
 
 -- Wallet policies
@@ -247,9 +237,7 @@ CREATE POLICY "Users can read own wallet" ON wallets
 
 CREATE POLICY "Admins can read wallets" ON wallets
   FOR SELECT USING (
-    EXISTS (
-      SELECT 1 FROM public.users u WHERE u.id = auth.uid() AND u.role = 'admin'
-    )
+    auth.uid() IN (SELECT id FROM users WHERE role = 'admin')
   );
 
 -- Insert default membership plans
