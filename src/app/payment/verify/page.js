@@ -2,11 +2,16 @@
 export const dynamic = 'force-dynamic'
 
 import { useEffect, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { useUserStore } from '@/store/userStore'
 
+function getQueryValue(key) {
+  if (typeof window === 'undefined') return null
+  const params = new URLSearchParams(window.location.search)
+  return params.get(key)
+}
+
 export default function PaymentVerifyPage() {
-  const searchParams = useSearchParams()
   const router = useRouter()
   const refreshProfile = useUserStore(state => state.refreshProfile)
   const [status, setStatus] = useState('verifying')
@@ -14,15 +19,15 @@ export default function PaymentVerifyPage() {
   const [details, setDetails] = useState(null)
 
   useEffect(() => {
-    const gateway = searchParams.get('gateway')
+    const gateway = getQueryValue('gateway')
     const reference =
-      searchParams.get('reference') ||
-      searchParams.get('trxref') ||
-      searchParams.get('reference_code')
+      getQueryValue('reference') ||
+      getQueryValue('trxref') ||
+      getQueryValue('reference_code')
     const transactionId =
-      searchParams.get('transaction_id') ||
-      searchParams.get('transactionId') ||
-      searchParams.get('tx_ref')
+      getQueryValue('transaction_id') ||
+      getQueryValue('transactionId') ||
+      getQueryValue('tx_ref')
 
     if (!gateway) {
       setStatus('error')
@@ -67,7 +72,7 @@ export default function PaymentVerifyPage() {
     }
 
     verifyPayment()
-  }, [searchParams, router, refreshProfile])
+  }, [router, refreshProfile])
 
   return (
     <div
