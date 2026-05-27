@@ -41,10 +41,14 @@ export async function POST(request) {
       }
     }
 
-    const { data: authData, error: authError } = await supabase.auth.signUp({
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email: email.toLowerCase().trim(),
       password,
-      options: { data: { full_name: fullName.trim(), phone: phone || '' } },
+      email_confirm: true,
+      user_metadata: {
+        full_name: fullName.trim(),
+        phone: phone || '',
+      },
     })
 
     if (authError) {
@@ -87,7 +91,7 @@ export async function POST(request) {
 
     return NextResponse.json({
       success: true,
-      message: 'Account created! Check your email to verify.',
+      message: 'Account created successfully. You can now sign in.',
       userId: authData.user.id,
     })
   } catch (err) {
