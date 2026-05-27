@@ -163,7 +163,7 @@ export default function SupportPage() {
       </section>
 
       {/* FAQ + Form */}
-      <section style={{ maxWidth:1100, margin:'0 auto', padding:'0 24px 80px', display:'grid', gridTemplateColumns:'1fr 400px', gap:28, flexWrap:'wrap' }}>
+      <section style={{ maxWidth:1100, margin:'0 auto', padding:'0 24px 80px', display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(320px, 1fr))', gap:28, flexWrap:'wrap' }}>
 
         {/* FAQ */}
         <div>

@@ -165,7 +165,7 @@ export default function CasinoPage() {
         ))}
       </div>
 
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 28px 80px', display: 'grid', gridTemplateColumns: '1fr 300px', gap: 24 }}>
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 28px 80px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 24 }}>
 
         {/* Left */}
         <div>

@@ -376,7 +376,7 @@ export default function RootLayout({ children }) {
       </head>
       <body style={{ margin: 0, background: '#0a192f', color: '#e6f1ff', minHeight: '100vh', overflowX: 'hidden' }}>
         <Header />
-        <main style={{ paddingBottom: 80, width: '100%', maxWidth: '100vw', overflowX: 'hidden' }}>{children}</main>
+        <main style={{ paddingBottom: 80, width: '100%', maxWidth: '100vw', minWidth: 0, overflowX: 'hidden' }}>{children}</main>
         <Footer />
         <BottomNav />
       </body>

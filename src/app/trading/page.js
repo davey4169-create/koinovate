@@ -137,7 +137,7 @@ export default function TradingPage() {
       </section>
 
       {/* ── MAIN LAYOUT ──────────────────────────────────── */}
-      <section style={{ padding: '0 28px 60px', maxWidth: 1300, margin: '0 auto', display: 'grid', gridTemplateColumns: '1fr 300px', gap: 20 }}>
+      <section style={{ padding: '0 28px 60px', maxWidth: 1300, margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20 }}>
 
         {/* LEFT — Chart */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -230,7 +230,7 @@ export default function TradingPage() {
           {/* Trade box */}
           <div style={{ padding: '24px', background: 'rgba(17,34,64,0.7)', border: '1px solid rgba(100,255,218,0.1)', borderRadius: 18 }}>
             <h3 style={{ fontFamily: '"Syne", sans-serif', color: '#e6f1ff', fontSize: 15, fontWeight: 700, marginBottom: 18 }}>Quick Trade</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
               <div>
                 <label style={{ color: '#a8b2d8', fontSize: 11, fontFamily: '"DM Sans", sans-serif', display: 'block', marginBottom: 6 }}>Amount (USDT)</label>
                 <input type="number" defaultValue="100" style={{ width: '100%', padding: '11px 14px', background: 'rgba(10,25,47,0.8)', border: '1px solid rgba(100,255,218,0.1)', borderRadius: 9, color: '#e6f1ff', fontSize: 14, fontFamily: '"DM Sans", sans-serif', outline: 'none', boxSizing: 'border-box' }} />
