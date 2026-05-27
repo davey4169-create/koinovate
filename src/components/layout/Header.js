@@ -1,15 +1,10 @@
-"use client"
+'use client'
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { useUserStore } from '@/store/userStore'
 
 export default function Header() {
   const [scrolled, setScrolled] = useState(false)
-  const router = useRouter()
-  const isLoggedIn = useUserStore(state => state.isLoggedIn)
-  const hasActivePlan = useUserStore(state => state.hasActivePlan)
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20)
@@ -26,13 +21,6 @@ export default function Header() {
     { label: 'Surveys',    href: '/surveys' },
     { label: 'Support',    href: '/support'}
   ]
-
-  const handleNavClick = (e, href) => {
-    e.preventDefault()
-    if (!isLoggedIn) return router.push('/auth')
-    if (!hasActivePlan) return router.push('/membership')
-    return router.push(href)
-  }
 
   return (
     <header style={{
@@ -69,10 +57,9 @@ export default function Header() {
       {/* Nav Links */}
       <nav style={{ display: 'flex', gap: 28, alignItems: 'center' }}>
         {navLinks.map((link) => (
-          <a
+          <Link
             key={link.href}
             href={link.href}
-            onClick={e => handleNavClick(e, link.href)}
             style={{
               color: '#8892b0',
               textDecoration: 'none',
@@ -80,28 +67,26 @@ export default function Header() {
               fontWeight: 500,
               fontFamily: '"DM Sans", sans-serif',
               transition: 'color 0.2s',
-              cursor: 'pointer',
             }}
             onMouseEnter={e => e.currentTarget.style.color = '#64ffda'}
             onMouseLeave={e => e.currentTarget.style.color = '#8892b0'}
           >
             {link.label}
-          </a>
+          </Link>
         ))}
       </nav>
 
       {/* Buttons */}
       <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-        <a onClick={e => { e.preventDefault(); router.push('/auth') }} style={{
+        <Link href="/auth" style={{
           color: '#8892b0',
           textDecoration: 'none',
           fontSize: 14,
           fontFamily: '"DM Sans", sans-serif',
-          cursor: 'pointer',
         }}>
           Sign In
-        </a>
-        <a onClick={e => { e.preventDefault(); router.push('/auth') }} style={{
+        </Link>
+        <Link href="/auth" style={{
           padding: '9px 20px',
           borderRadius: 8,
           background: '#64ffda',
@@ -110,10 +95,9 @@ export default function Header() {
           fontSize: 14,
           textDecoration: 'none',
           fontFamily: '"DM Sans", sans-serif',
-          cursor: 'pointer',
         }}>
           Get Started
-        </a>
+        </Link>
       </div>
     </header>
   )

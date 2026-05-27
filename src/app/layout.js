@@ -1,11 +1,10 @@
-"use client"
+'use client'
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import Image from 'next/image'
-import './globals.css'
 import { useUserStore } from '@/store/userStore'
-import MobileLayout from '@/components/layout/MobileLayout'
+import './globals.css'
 
 // ─── NAVIGATION DATA ──────────────────────────────────────────
 const mainLinks = [
@@ -34,7 +33,31 @@ function Header() {
   const [mobileOpen,  setMobileOpen]  = useState(false)
   const [moreOpen,    setMoreOpen]    = useState(false)
   const pathname = usePathname()
+  const router = useRouter()
+  const isLoggedIn = useUserStore(state => state.isLoggedIn)
+  const hasActivePlan = useUserStore(state => state.hasActivePlan)
   const moreRef  = useRef(null)
+
+  const handleLinkNavigation = (e, href) => {
+    e.preventDefault()
+    if (!isLoggedIn) {
+      setMobileOpen(false)
+      setMoreOpen(false)
+      router.push('/auth')
+      return
+    }
+
+    if (!hasActivePlan && href !== '/membership') {
+      setMobileOpen(false)
+      setMoreOpen(false)
+      router.push('/membership')
+      return
+    }
+
+    setMobileOpen(false)
+    setMoreOpen(false)
+    router.push(href)
+  }
 
   useEffect(() => {
     const fn = () => setScrolled(window.scrollY > 20)
@@ -75,7 +98,7 @@ function Header() {
         {/* Desktop Nav */}
         <nav className="desktop-nav" style={{ display: 'flex', gap: 22, alignItems: 'center' }}>
           {mainLinks.slice(0, 5).map(l => (
-            <Link key={l.href} href={l.href} style={{
+            <Link key={l.href} href={l.href} onClick={e => handleLinkNavigation(e, l.href)} style={{
               color: pathname === l.href ? '#64ffda' : '#8892b0',
               textDecoration: 'none', fontSize: 13, fontWeight: 500,
               fontFamily: '"DM Sans", sans-serif', transition: 'color 0.2s',
@@ -100,7 +123,7 @@ function Header() {
                 boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
               }}>
                 {mainLinks.slice(5).map(l => (
-                  <Link key={l.href} href={l.href} onClick={() => setMoreOpen(false)} style={{
+                  <Link key={l.href} href={l.href} onClick={e => handleLinkNavigation(e, l.href)} style={{
                     display: 'flex', alignItems: 'center', gap: 10,
                     padding: '11px 14px', borderRadius: 10,
                     color: '#a8b2d8', textDecoration: 'none', fontSize: 13,
@@ -158,7 +181,7 @@ function Header() {
 
           <nav style={{ padding: '16px 12px' }}>
             {mainLinks.map(l => (
-              <Link key={l.href} href={l.href} onClick={() => setMobileOpen(false)} style={{
+              <Link key={l.href} href={l.href} onClick={e => handleLinkNavigation(e, l.href)} style={{
                 display: 'flex', alignItems: 'center', gap: 14,
                 padding: '15px 16px', borderRadius: 12, marginBottom: 4,
                 color: pathname === l.href ? '#64ffda' : '#a8b2d8',
@@ -200,7 +223,6 @@ function BottomNav() {
   const [moreOpen, setMoreOpen] = useState(false)
   const isLoggedIn = useUserStore(state => state.isLoggedIn)
 
-  // Only show bottom nav on user dashboard when logged in
   if (!isLoggedIn || !pathname.startsWith('/dashboard')) return null
 
   return (
@@ -359,9 +381,7 @@ export default function RootLayout({ children }) {
       </head>
       <body style={{ margin: 0, background: '#0a192f', color: '#e6f1ff', minHeight: '100vh', overflowX: 'hidden' }}>
         <Header />
-        <main style={{ paddingBottom: 80 }}>
-          <MobileLayout>{children}</MobileLayout>
-        </main>
+        <main style={{ paddingBottom: 80 }}>{children}</main>
         <Footer />
         <BottomNav />
       </body>
