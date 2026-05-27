@@ -2,8 +2,8 @@
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import Image from 'next/image'
 import { useUserStore } from '@/store/userStore'
+import Image from 'next/image'
 import './globals.css'
 
 // ─── NAVIGATION DATA ──────────────────────────────────────────
@@ -34,36 +34,28 @@ function Header() {
   const [moreOpen,    setMoreOpen]    = useState(false)
   const pathname = usePathname()
   const router = useRouter()
+  const moreRef  = useRef(null)
   const isLoggedIn = useUserStore(state => state.isLoggedIn)
   const hasActivePlan = useUserStore(state => state.hasActivePlan)
-  const moreRef  = useRef(null)
-
-  const handleLinkNavigation = (e, href) => {
-    e.preventDefault()
-    if (!isLoggedIn) {
-      setMobileOpen(false)
-      setMoreOpen(false)
-      router.push('/auth')
-      return
-    }
-
-    if (!hasActivePlan && href !== '/membership') {
-      setMobileOpen(false)
-      setMoreOpen(false)
-      router.push('/membership')
-      return
-    }
-
-    setMobileOpen(false)
-    setMoreOpen(false)
-    router.push(href)
-  }
 
   useEffect(() => {
     const fn = () => setScrolled(window.scrollY > 20)
     window.addEventListener('scroll', fn)
     return () => window.removeEventListener('scroll', fn)
   }, [])
+
+  const getTargetHref = href => {
+    if (!isLoggedIn) return '/auth'
+    if (!hasActivePlan) return '/membership'
+    return href
+  }
+
+  const handleNavClick = (event, href) => {
+    event.preventDefault()
+    router.push(getTargetHref(href))
+    setMobileOpen(false)
+    setMoreOpen(false)
+  }
 
   useEffect(() => {
     const fn = e => { if (moreRef.current && !moreRef.current.contains(e.target)) setMoreOpen(false) }
@@ -98,13 +90,14 @@ function Header() {
         {/* Desktop Nav */}
         <nav className="desktop-nav" style={{ display: 'flex', gap: 22, alignItems: 'center' }}>
           {mainLinks.slice(0, 5).map(l => (
-            <Link key={l.href} href={l.href} onClick={e => handleLinkNavigation(e, l.href)} style={{
+            <button key={l.href} onClick={e => handleNavClick(e, l.href)} style={{
+              background: 'none', border: 'none', cursor: 'pointer',
               color: pathname === l.href ? '#64ffda' : '#8892b0',
               textDecoration: 'none', fontSize: 13, fontWeight: 500,
               fontFamily: '"DM Sans", sans-serif', transition: 'color 0.2s',
               borderBottom: pathname === l.href ? '1px solid #64ffda' : '1px solid transparent',
               paddingBottom: 2,
-            }}>{l.label}</Link>
+            }}>{l.label}</button>
           ))}
 
           {/* More dropdown */}
@@ -123,17 +116,19 @@ function Header() {
                 boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
               }}>
                 {mainLinks.slice(5).map(l => (
-                  <Link key={l.href} href={l.href} onClick={e => handleLinkNavigation(e, l.href)} style={{
+                  <button key={l.href} onClick={e => handleNavClick(e, l.href)} style={{
                     display: 'flex', alignItems: 'center', gap: 10,
+                    width: '100%', background: 'transparent', border: 'none',
                     padding: '11px 14px', borderRadius: 10,
-                    color: '#a8b2d8', textDecoration: 'none', fontSize: 13,
+                    color: '#a8b2d8', fontSize: 13,
                     fontFamily: '"DM Sans", sans-serif', transition: 'all 0.2s',
+                    textAlign: 'left', cursor: 'pointer',
                   }}
                   onMouseEnter={e => { e.currentTarget.style.background = 'rgba(100,255,218,0.08)'; e.currentTarget.style.color = '#64ffda' }}
                   onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#a8b2d8' }}
                   >
                     <span style={{ fontSize: 16 }}>{l.icon}</span>{l.label}
-                  </Link>
+                  </button>
                 ))}
               </div>
             )}
@@ -181,18 +176,19 @@ function Header() {
 
           <nav style={{ padding: '16px 12px' }}>
             {mainLinks.map(l => (
-              <Link key={l.href} href={l.href} onClick={e => handleLinkNavigation(e, l.href)} style={{
+              <button key={l.href} onClick={e => handleNavClick(e, l.href)} style={{
                 display: 'flex', alignItems: 'center', gap: 14,
-                padding: '15px 16px', borderRadius: 12, marginBottom: 4,
+                width: '100%', background: pathname === l.href ? 'rgba(100,255,218,0.08)' : 'transparent',
+                border: 'none', padding: '15px 16px', borderRadius: 12, marginBottom: 4,
                 color: pathname === l.href ? '#64ffda' : '#a8b2d8',
-                textDecoration: 'none', fontSize: 15,
+                fontSize: 15,
                 fontFamily: '"DM Sans", sans-serif', fontWeight: 500,
-                background: pathname === l.href ? 'rgba(100,255,218,0.08)' : 'transparent',
                 borderLeft: pathname === l.href ? '3px solid #64ffda' : '3px solid transparent',
-                transition: 'all 0.2s',
+                transition: 'all 0.2s', cursor: 'pointer',
+                textAlign: 'left',
               }}>
                 <span style={{ fontSize: 20 }}>{l.icon}</span>{l.label}
-              </Link>
+              </button>
             ))}
           </nav>
 
@@ -221,9 +217,8 @@ function Header() {
 function BottomNav() {
   const pathname = usePathname()
   const [moreOpen, setMoreOpen] = useState(false)
-  const isLoggedIn = useUserStore(state => state.isLoggedIn)
 
-  if (!isLoggedIn || !pathname.startsWith('/dashboard')) return null
+  if (!pathname.startsWith('/dashboard')) return null
 
   return (
     <>
@@ -381,7 +376,7 @@ export default function RootLayout({ children }) {
       </head>
       <body style={{ margin: 0, background: '#0a192f', color: '#e6f1ff', minHeight: '100vh', overflowX: 'hidden' }}>
         <Header />
-        <main style={{ paddingBottom: 80 }}>{children}</main>
+        <main style={{ paddingBottom: 80, width: '100%', maxWidth: '100vw', overflowX: 'hidden' }}>{children}</main>
         <Footer />
         <BottomNav />
       </body>
