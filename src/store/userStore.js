@@ -1,3 +1,9 @@
+// ============================================================
+// src/store/userStore.js
+// Global user state management with Zustand
+// ============================================================
+
+'use client'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { supabase } from '@/lib/supabase'
@@ -10,9 +16,17 @@ export const useUserStore = create(
       isLoading: false,
       isLoggedIn: false,
       hasActivePlan: false,
+      token: null,
 
       setUser: user => set({ user, isLoggedIn: !!user }),
       setWallet: wallet => set({ wallet }),
+      setToken: token => set({ token }),
+
+      getToken: async () => {
+        const { data, error } = await supabase.auth.getSession()
+        if (error) return null
+        return data.session?.access_token || null
+      },
 
       login: async (email, password) => {
         set({ isLoading: true })
@@ -48,19 +62,19 @@ export const useUserStore = create(
 
         const hasActivePlan =
           profile?.membership_tier &&
-          profile.membership_tier !== 'none' &&
-          profile.membership_expires_at &&
-          new Date(profile.membership_expires_at) > new Date()
+          profile.membership_active &&
+          (profile.membership_tier === 'pulse' || profile.membership_tier === 'premium')
 
         set({
-          user: { ...data.user, ...profile },
-          wallet: wallet || null,
+          user: profile,
+          wallet,
           isLoggedIn: true,
           hasActivePlan,
           isLoading: false,
+          token: data.session?.access_token,
         })
 
-        return { success: true }
+        return { success: true, user: profile }
       },
 
       logout: async () => {
@@ -70,7 +84,60 @@ export const useUserStore = create(
           wallet: null,
           isLoggedIn: false,
           hasActivePlan: false,
+          token: null,
         })
+      },
+
+      register: async (email, password, fullName, phone = '', referralCode = '') => {
+        set({ isLoading: true })
+
+        try {
+          const res = await fetch('/api/auth/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: email.toLowerCase().trim(),
+              password,
+              fullName: fullName.trim(),
+              phone: phone.trim(),
+              referralCode: referralCode.trim(),
+            }),
+          })
+
+          const data = await res.json()
+
+          if (!res.ok) {
+            set({ isLoading: false })
+            return { error: data.error || 'Registration failed' }
+          }
+
+          set({ isLoading: false })
+          return { success: true, userId: data.userId }
+        } catch (err) {
+          set({ isLoading: false })
+          return { error: 'Something went wrong. Please try again.' }
+        }
+      },
+
+      updateProfile: async (updates) => {
+        const user = get().user
+        if (!user) return { error: 'Not logged in' }
+
+        try {
+          const { data, error } = await supabase
+            .from('users')
+            .update(updates)
+            .eq('id', user.id)
+            .select()
+            .single()
+
+          if (error) throw error
+
+          set({ user: data })
+          return { success: true, user: data }
+        } catch (err) {
+          return { error: err.message }
+        }
       },
 
       refreshWallet: async () => {
