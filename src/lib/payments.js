@@ -1,15 +1,21 @@
-// ─── PAYSTACK ─────────────────────────────────────────────────
+// src/lib/payments.js
+// Server-side only
+
+// ── PAYSTACK ──────────────────────────────────────────────────
 export async function initializePaystack({ email, amount, metadata = {}, callbackUrl }) {
+  const secretKey = process.env.PAYSTACK_SECRET_KEY
+  if (!secretKey) throw new Error('PAYSTACK_SECRET_KEY is not set.')
+
   const response = await fetch('https://api.paystack.co/transaction/initialize', {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
+      Authorization:  `Bearer ${secretKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
       email,
-      amount: amount * 100,           // Paystack uses kobo
-      currency: 'NGN',
+      amount:      Math.round(Number(amount) * 100), // kobo
+      currency:    'NGN',
       callback_url: callbackUrl || `${process.env.NEXT_PUBLIC_APP_URL}/payment/verify`,
       metadata,
     }),
@@ -17,40 +23,49 @@ export async function initializePaystack({ email, amount, metadata = {}, callbac
 
   const data = await response.json()
   if (!data.status) throw new Error(data.message || 'Paystack initialization failed')
-  return data.data  // { authorization_url, access_code, reference }
+  return data.data
 }
 
 export async function verifyPaystack(reference) {
-  const response = await fetch(`https://api.paystack.co/transaction/verify/${reference}`, {
-    headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}` },
-  })
+  const secretKey = process.env.PAYSTACK_SECRET_KEY
+  if (!secretKey) throw new Error('PAYSTACK_SECRET_KEY is not set.')
+
+  const response = await fetch(
+    `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
+    { headers: { Authorization: `Bearer ${secretKey}` } }
+  )
 
   const data = await response.json()
   if (!data.status) throw new Error('Paystack verification failed')
-  return data.data  // { status: 'success'|'failed', amount, ... }
+  return data.data
 }
 
-// ─── FLUTTERWAVE ──────────────────────────────────────────────
-export async function initializeFlutterwave({ email, name, phone, amount, description, metadata = {}, redirectUrl }) {
+// ── FLUTTERWAVE ───────────────────────────────────────────────
+export async function initializeFlutterwave({
+  email, name, phone, amount, description, metadata = {}, redirectUrl,
+}) {
+  const secretKey = process.env.FLUTTERWAVE_SECRET_KEY
+  if (!secretKey) throw new Error('FLUTTERWAVE_SECRET_KEY is not set.')
+
   const txRef = `KNV-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`
 
   const response = await fetch('https://api.flutterwave.com/v3/payments', {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${process.env.FLUTTERWAVE_SECRET_KEY}`,
+      Authorization:  `Bearer ${secretKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
       tx_ref:       txRef,
-      amount,
+      amount:       Number(amount),
       currency:     'NGN',
       redirect_url: redirectUrl || `${process.env.NEXT_PUBLIC_APP_URL}/payment/verify`,
-      customer: { email, name, phonenumber: phone },
+      customer: { email, name, phonenumber: phone || '' },
       payment_options: 'card,banktransfer,ussd',
       customizations: {
-        title: 'KOINOVATE',
-        description,
-        logo: `${process.env.NEXT_PUBLIC_APP_URL}/koinovate-logo.png`,
+        title:       'KOINOVATE',
+        description: description || 'KOINOVATE Membership',
+        logo:        `${process.env.NEXT_PUBLIC_APP_URL}/koinovate-logo.png`,
       },
       meta: metadata,
     }),
@@ -62,9 +77,13 @@ export async function initializeFlutterwave({ email, name, phone, amount, descri
 }
 
 export async function verifyFlutterwave(transactionId) {
-  const response = await fetch(`https://api.flutterwave.com/v3/transactions/${transactionId}/verify`, {
-    headers: { Authorization: `Bearer ${process.env.FLUTTERWAVE_SECRET_KEY}` },
-  })
+  const secretKey = process.env.FLUTTERWAVE_SECRET_KEY
+  if (!secretKey) throw new Error('FLUTTERWAVE_SECRET_KEY is not set.')
+
+  const response = await fetch(
+    `https://api.flutterwave.com/v3/transactions/${transactionId}/verify`,
+    { headers: { Authorization: `Bearer ${secretKey}` } }
+  )
 
   const data = await response.json()
   if (data.status !== 'success') throw new Error('Flutterwave verification failed')
