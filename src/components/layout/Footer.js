@@ -84,7 +84,7 @@ export default function Footer() {
           gap: 8,
         }}>
           <p style={{ color: '#8892b0', fontSize: 12, fontFamily: '"DM Sans", sans-serif' }}>
-            © 2026 KOINOVATE. All rights reserve.
+            © 2026 KOINOVATE. All rights reserved.
           </p>
           <p style={{ color: 'rgba(136,146,176,0.4)', fontSize: 12, fontFamily: '"DM Sans", sans-serif' }}>
             Secured · Scalable · Futuristic
