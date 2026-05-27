@@ -1,13 +1,13 @@
+// ============================================================
+// src/app/api/payments/verify/route.js
+// ============================================================
+
 import { NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase'
-import { verifyPaystack, verifyFlutterwave } from '@/lib/payments'
-import { creditWallet } from '@/lib/wallet'
 
-const TIER_PRICES   = { spark: 8000,  pulse: 15000, momentum: 25000 }
-const TIER_REWARDS  = { spark: 5000,  pulse: 11000, momentum: 20000  }
-const TIER_DAYS     = { spark: 30,    pulse: 30,    momentum: 30     }
-
-const REFERRAL_BONUSES = { spark: 5100, pulse: 8000, momentum: 10000 }
+const TIER_PRICES  = { spark: 8000,  pulse: 15000, momentum: 25000 }
+const TIER_REWARDS = { spark: 5000,  pulse: 11000, momentum: 20000  }
+const TIER_DAYS    = { spark: 30,    pulse: 30,    momentum: 30     }
+const REF_BONUSES  = { spark: 5100,  pulse: 8000,  momentum: 10000  }
 
 export async function POST(request) {
   try {
@@ -18,27 +18,33 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Payment gateway is required.' }, { status: 400 })
     }
 
-    let paymentStatus = ''
-    let amountPaid    = 0
-    let metaData      = {}
+    // Dynamic imports to avoid any module-level failures
+    const { supabaseAdmin }                        = await import('@/lib/supabase')
+    const { verifyPaystack, verifyFlutterwave }    = await import('@/lib/payments')
+    const { creditWallet }                         = await import('@/lib/wallet')
 
-    // ── Verify with the correct gateway ───────────────────────
+    let amountPaid = 0
+    let metaData   = {}
+
+    // ── Verify payment with the correct gateway ──────────────
     if (gateway === 'paystack') {
-      if (!reference) return NextResponse.json({ error: 'Reference is required for Paystack.' }, { status: 400 })
-
+      if (!reference) {
+        return NextResponse.json({ error: 'Reference is required for Paystack.' }, { status: 400 })
+      }
       const result = await verifyPaystack(reference)
       if (result.status !== 'success') {
-        return NextResponse.json({ error: 'Payment was not successful.' }, { status: 400 })
+        return NextResponse.json({ error: 'Paystack payment was not successful.' }, { status: 400 })
       }
-      amountPaid = result.amount / 100
+      amountPaid = result.amount / 100 // Convert from kobo to naira
       metaData   = result.metadata || {}
 
     } else if (gateway === 'flutterwave') {
-      if (!transactionId) return NextResponse.json({ error: 'Transaction ID is required for Flutterwave.' }, { status: 400 })
-
+      if (!transactionId) {
+        return NextResponse.json({ error: 'Transaction ID is required for Flutterwave.' }, { status: 400 })
+      }
       const result = await verifyFlutterwave(transactionId)
       if (result.status !== 'successful') {
-        return NextResponse.json({ error: 'Payment was not successful.' }, { status: 400 })
+        return NextResponse.json({ error: 'Flutterwave payment was not successful.' }, { status: 400 })
       }
       amountPaid = result.amount
       metaData   = result.meta || {}
@@ -47,7 +53,8 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Invalid payment gateway.' }, { status: 400 })
     }
 
-    const { user_id: userId, tier } = metaData
+    const userId = metaData.user_id
+    const tier   = metaData.tier
 
     if (!userId || !tier) {
       return NextResponse.json({ error: 'Invalid payment metadata. Missing user_id or tier.' }, { status: 400 })
@@ -59,10 +66,12 @@ export async function POST(request) {
     }
 
     if (Number(amountPaid) < expectedAmount) {
-      return NextResponse.json({ error: `Payment amount (₦${amountPaid}) is less than required (₦${expectedAmount}).` }, { status: 400 })
+      return NextResponse.json({
+        error: `Paid amount (₦${amountPaid}) is less than required (₦${expectedAmount}).`
+      }, { status: 400 })
     }
 
-    // ── Idempotency check (prevent double processing) ─────────
+    // ── Idempotency: prevent double processing ───────────────
     const gatewayRef = reference || String(transactionId)
     const { data: existingTx } = await supabaseAdmin
       .from('transactions')
@@ -74,12 +83,11 @@ export async function POST(request) {
       return NextResponse.json({ success: true, message: 'Payment already processed.' })
     }
 
-    // ── Calculate membership expiry ───────────────────────────
+    // ── Activate membership ──────────────────────────────────
     const expiresAt = new Date()
     expiresAt.setDate(expiresAt.getDate() + TIER_DAYS[tier])
 
-    // ── Update user membership ────────────────────────────────
-    const { error: updateError } = await supabaseAdmin
+    await supabaseAdmin
       .from('users')
       .update({
         membership_tier:       tier,
@@ -88,12 +96,7 @@ export async function POST(request) {
       })
       .eq('id', userId)
 
-    if (updateError) {
-      console.error('User update error:', updateError.message)
-      return NextResponse.json({ error: 'Failed to update membership.' }, { status: 500 })
-    }
-
-    // ── Insert membership record ──────────────────────────────
+    // ── Record membership ────────────────────────────────────
     await supabaseAdmin.from('memberships').insert({
       user_id:           userId,
       tier,
@@ -103,18 +106,18 @@ export async function POST(request) {
       expires_at:        expiresAt.toISOString(),
     })
 
-    // ── Log payment transaction ───────────────────────────────
+    // ── Log payment transaction ──────────────────────────────
     await supabaseAdmin.from('transactions').insert({
       user_id:     userId,
       type:        'membership_payment',
       amount:      amountPaid,
       status:      'completed',
       description: `${tier.toUpperCase()} membership activated`,
-      gateway,
+      gateway:     gateway,
       gateway_ref: gatewayRef,
     })
 
-    // ── Credit starter reward ─────────────────────────────────
+    // ── Credit starter reward ────────────────────────────────
     const starterReward = TIER_REWARDS[tier]
     await creditWallet({
       userId,
@@ -125,7 +128,7 @@ export async function POST(request) {
       metadata:    { tier },
     })
 
-    // ── Credit referral bonus if applicable ───────────────────
+    // ── Credit referral bonus if applicable ─────────────────
     const { data: referral } = await supabaseAdmin
       .from('referrals')
       .select('referrer_id')
@@ -141,7 +144,7 @@ export async function POST(request) {
         .maybeSingle()
 
       const referrerTier = referrer?.membership_tier || 'spark'
-      const bonusAmount  = REFERRAL_BONUSES[referrerTier] || 5100
+      const bonusAmount  = REF_BONUSES[referrerTier]  || 5100
 
       await creditWallet({
         userId:      referral.referrer_id,
@@ -154,24 +157,20 @@ export async function POST(request) {
 
       await supabaseAdmin
         .from('referrals')
-        .update({
-          bonus_amount: bonusAmount,
-          bonus_paid:   true,
-          paid_at:      new Date().toISOString(),
-        })
+        .update({ bonus_amount: bonusAmount, bonus_paid: true, paid_at: new Date().toISOString() })
         .eq('referrer_id', referral.referrer_id)
         .eq('referred_id', userId)
     }
 
     return NextResponse.json({
       success:   true,
-      message:   `${tier.toUpperCase()} membership activated! ₦${starterReward.toLocaleString()} starter reward added.`,
+      message:   `${tier.toUpperCase()} membership activated! ₦${starterReward.toLocaleString()} starter reward added to your wallet.`,
       tier,
       expiresAt: expiresAt.toISOString(),
     })
 
   } catch (err) {
-    console.error('Payment verify error:', err)
+    console.error('[verify payment error]', err)
     return NextResponse.json({ error: err.message || 'Something went wrong.' }, { status: 500 })
   }
 }

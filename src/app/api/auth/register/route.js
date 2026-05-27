@@ -1,12 +1,15 @@
+// ============================================================
+// src/app/api/auth/register/route.js
+// ============================================================
+
 import { NextResponse } from 'next/server'
-import { supabase, supabaseAdmin } from '@/lib/supabase'
 
 export async function POST(request) {
   try {
     const body = await request.json()
     const { email, password, fullName, phone, referralCode } = body
 
-    // ── Validation ────────────────────────────────────────────
+    // ── Validation ───────────────────────────────────────────
     if (!email || !password || !fullName) {
       return NextResponse.json(
         { error: 'Email, password, and full name are required.' },
@@ -19,16 +22,13 @@ export async function POST(request) {
         { status: 400 }
       )
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return NextResponse.json(
-        { error: 'Please enter a valid email address.' },
-        { status: 400 }
-      )
-    }
 
-    // ── Anti-fraud: check IP for multiple accounts ─────────────
-    const forwardedFor = request.headers.get('x-forwarded-for') || ''
-    const ip = forwardedFor.split(',')[0]?.trim() || 'unknown'
+    // Dynamic imports
+    const { supabase, supabaseAdmin } = await import('@/lib/supabase')
+
+    // ── Anti-fraud: check IP ─────────────────────────────────
+    const forwarded = request.headers.get('x-forwarded-for') || ''
+    const ip = forwarded.split(',')[0]?.trim() || 'unknown'
 
     if (ip !== 'unknown') {
       const { count } = await supabaseAdmin
@@ -38,16 +38,16 @@ export async function POST(request) {
 
       if ((count || 0) >= 3) {
         return NextResponse.json({
-          error: 'Multiple account creation from this location has been detected. Please contact support if this is an error.',
+          error: 'Too many accounts from this location. Contact support if this is an error.'
         }, { status: 403 })
       }
     }
 
-    // ── Create Supabase auth user ─────────────────────────────
+    // ── Create auth user ─────────────────────────────────────
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email:    email.toLowerCase().trim(),
       password,
-      options: { data: { full_name: fullName, phone: phone || '' } },
+      options: { data: { full_name: fullName.trim(), phone: phone || '' } },
     })
 
     if (authError) {
@@ -59,7 +59,7 @@ export async function POST(request) {
 
     // ── Find referrer ─────────────────────────────────────────
     let referrerId = null
-    if (referralCode && referralCode.trim()) {
+    if (referralCode?.trim()) {
       const { data: referrer } = await supabaseAdmin
         .from('users')
         .select('id')
@@ -70,41 +70,31 @@ export async function POST(request) {
     }
 
     // ── Insert user profile ───────────────────────────────────
-    const { error: insertError } = await supabaseAdmin
-      .from('users')
-      .insert({
-        id:          authData.user.id,
-        email:       email.toLowerCase().trim(),
-        full_name:   fullName.trim(),
-        phone:       phone?.trim() || null,
-        signup_ip:   ip,
-        referred_by: referrerId,
-      })
-
-    if (insertError) {
-      console.error('Profile insert error:', insertError.message)
-      // Don't fail — auth user was created, profile will sync
-    }
+    await supabaseAdmin.from('users').insert({
+      id:          authData.user.id,
+      email:       email.toLowerCase().trim(),
+      full_name:   fullName.trim(),
+      phone:       phone?.trim() || null,
+      signup_ip:   ip,
+      referred_by: referrerId,
+    })
 
     // ── Log referral ──────────────────────────────────────────
     if (referrerId) {
       await supabaseAdmin.from('referrals').insert({
         referrer_id: referrerId,
         referred_id: authData.user.id,
-      }).maybeSingle()
+      })
     }
 
     return NextResponse.json({
       success: true,
-      message: 'Account created successfully!',
+      message: 'Account created! Check your email to verify.',
       userId:  authData.user.id,
     })
 
   } catch (err) {
-    console.error('Register error:', err)
-    return NextResponse.json(
-      { error: 'Something went wrong. Please try again.' },
-      { status: 500 }
-    )
+    console.error('[register error]', err)
+    return NextResponse.json({ error: 'Something went wrong. Please try again.' }, { status: 500 })
   }
 }
