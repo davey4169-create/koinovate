@@ -36,29 +36,25 @@ export const useUserStore = create(
           password,
         })
 
-        if (error) {
+        if (error || !data?.user) {
           set({ isLoading: false })
-          return { error: error.message }
-        }
-
-        if (!data?.user) {
-          set({ isLoading: false })
-          return { error: 'Unable to sign in. Please try again.' }
+          return { error: error?.message || 'Unable to sign in. Please try again.' }
         }
 
         const userId = data.user.id
 
-        const { data: profile } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', userId)
-          .single()
+        const [profileResult, walletResult] = await Promise.all([
+          supabase.from('users').select('*').eq('id', userId).single(),
+          supabase.from('wallets').select('*').eq('user_id', userId).single(),
+        ])
 
-        const { data: wallet } = await supabase
-          .from('wallets')
-          .select('*')
-          .eq('user_id', userId)
-          .single()
+        if (profileResult.error) {
+          set({ isLoading: false })
+          return { error: profileResult.error.message || 'Unable to load profile.' }
+        }
+
+        const profile = profileResult.data
+        const wallet = walletResult.data || null
 
         const hasActivePlan =
           profile?.membership_tier &&
@@ -88,11 +84,11 @@ export const useUserStore = create(
         })
       },
 
-      register: async (email, password, fullName, phone = '', referralCode = '') => {
+      register: async ({ email, password, fullName, phone = '', referralCode = '' }) => {
         set({ isLoading: true })
 
         try {
-          const res = await fetch('/api/auth/register', {
+          const response = await fetch('/api/auth/register', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -104,11 +100,11 @@ export const useUserStore = create(
             }),
           })
 
-          const data = await res.json()
+          const data = await response.json()
 
-          if (!res.ok) {
+          if (!response.ok) {
             set({ isLoading: false })
-            return { error: data.error || 'Registration failed' }
+            return { error: data.error || 'Registration failed.' }
           }
 
           set({ isLoading: false })
@@ -117,6 +113,47 @@ export const useUserStore = create(
           set({ isLoading: false })
           return { error: 'Something went wrong. Please try again.' }
         }
+      },
+
+      refreshSession: async () => {
+        set({ isLoading: true })
+
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
+        if (sessionError || !sessionData?.session?.user) {
+          set({ isLoading: false })
+          return null
+        }
+
+        const currentUserId = sessionData.session.user.id
+
+        const [profileResult, walletResult] = await Promise.all([
+          supabase.from('users').select('*').eq('id', currentUserId).single(),
+          supabase.from('wallets').select('*').eq('user_id', currentUserId).single(),
+        ])
+
+        if (profileResult.error) {
+          set({ isLoading: false })
+          return null
+        }
+
+        const profile = profileResult.data
+        const wallet = walletResult.data || null
+
+        const hasActivePlan =
+          profile?.membership_tier &&
+          profile.membership_active &&
+          (profile.membership_tier === 'pulse' || profile.membership_tier === 'premium')
+
+        set({
+          user: profile,
+          wallet,
+          isLoggedIn: true,
+          hasActivePlan,
+          isLoading: false,
+          token: sessionData.session.access_token,
+        })
+
+        return { success: true, user: profile }
       },
 
       updateProfile: async (updates) => {
@@ -192,26 +229,6 @@ export const useUserStore = create(
         })
       },
 
-      register: async ({ email, password, fullName, phone }) => {
-        const response = await fetch('/api/auth/register', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email,
-            password,
-            fullName,
-            phone,
-          }),
-        })
-
-        const data = await response.json()
-
-        if (!response.ok) {
-          return { error: data.error || 'Failed to create your account.' }
-        }
-
-        return { success: true }
-      },
     }),
     {
       name: 'koinovate-user',

@@ -37,12 +37,21 @@ function Header() {
   const moreRef  = useRef(null)
   const isLoggedIn = useUserStore(state => state.isLoggedIn)
   const hasActivePlan = useUserStore(state => state.hasActivePlan)
+  const refreshSession = useUserStore(state => state.refreshSession)
+  const user = useUserStore(state => state.user)
+  const isLoading = useUserStore(state => state.isLoading)
 
   useEffect(() => {
     const fn = () => setScrolled(window.scrollY > 20)
     window.addEventListener('scroll', fn)
     return () => window.removeEventListener('scroll', fn)
   }, [])
+
+  useEffect(() => {
+    if (!user && !isLoading) {
+      refreshSession()
+    }
+  }, [user, isLoading, refreshSession])
 
   const getTargetHref = href => {
     if (!isLoggedIn) return '/auth'

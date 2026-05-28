@@ -146,7 +146,7 @@ export default function AuthPage() {
           setLoading(false)
           return
         }
-        router.push(hasActivePlan ? '/dashboard' : '/membership')
+        router.push('/dashboard')
       } else {
         const result = await register({
           email: form.email,
@@ -170,9 +170,9 @@ export default function AuthPage() {
 
         setMsg({
           type: 'success',
-          text: '✅ Account created! Redirecting to membership setup...',
+          text: '✅ Account created! Redirecting to your dashboard...',
         })
-        router.push('/membership')
+        router.push('/dashboard')
       }
     } catch (err) {
       setMsg({ type: 'error', text: err.message || 'Something went wrong.' })

@@ -27,17 +27,34 @@ export async function POST(request, { params }) {
       return NextResponse.json({ error: 'Course not found' }, { status: 404 })
     }
 
-    // Mark course as completed
-    const { data, error } = await supabaseAdmin
+    const { data: existingCourse } = await supabaseAdmin
       .from('user_courses')
-      .upsert({
-        user_id: user.id,
-        course_id: courseId,
-        progress: 100,
-        completed_at: new Date().toISOString(),
-      })
-      .select()
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('course_id', courseId)
       .single()
+
+    if (existingCourse?.completed_at) {
+      return NextResponse.json({ success: true, completion: existingCourse })
+    }
+
+    const { data, error } = existingCourse
+      ? await supabaseAdmin
+          .from('user_courses')
+          .update({ progress: 100, completed_at: new Date().toISOString() })
+          .eq('id', existingCourse.id)
+          .select()
+          .single()
+      : await supabaseAdmin
+          .from('user_courses')
+          .insert({
+            user_id: user.id,
+            course_id: courseId,
+            progress: 100,
+            completed_at: new Date().toISOString(),
+          })
+          .select()
+          .single()
 
     if (error) throw error
 

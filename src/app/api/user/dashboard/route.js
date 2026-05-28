@@ -21,12 +21,38 @@ export async function GET(request) {
       .eq('id', user.id)
       .single()
 
-    // Get wallet
-    const { data: wallet } = await supabaseAdmin
+    // Get wallet or create a safe fallback if missing
+    let wallet = null
+    const { data: walletData, error: walletError } = await supabaseAdmin
       .from('wallets')
       .select('*')
       .eq('user_id', user.id)
       .single()
+
+    if (walletError && walletError.code !== 'PGRST116') {
+      throw walletError
+    }
+
+    if (walletData) {
+      wallet = walletData
+    } else {
+      const { data: createdWallet, error: createWalletError } = await supabaseAdmin
+        .from('wallets')
+        .insert({
+          user_id: user.id,
+          balance: 0,
+          total_earned: 0,
+          total_withdrawn: 0,
+        })
+        .select()
+        .single()
+
+      if (createWalletError) {
+        throw createWalletError
+      }
+
+      wallet = createdWallet
+    }
 
     // Get completed surveys count
     const { count: completedSurveys } = await supabaseAdmin

@@ -28,6 +28,7 @@ export default function AdminPlans() {
   const [message, setMessage] = useState('')
 
   useEffect(() => {
+    if (user === null) return
     if (user?.role !== 'admin') {
       router.push('/user/dashboard')
       return
@@ -37,7 +38,13 @@ export default function AdminPlans() {
 
   const fetchPlans = async () => {
     try {
-      const res = await fetch('/api/admin/plans')
+      const token = await useUserStore.getState().getToken?.()
+      const res = await fetch('/api/admin/plans', {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      })
       if (res.ok) {
         const data = await res.json()
         setPlans(data.plans || [])
@@ -52,9 +59,13 @@ export default function AdminPlans() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     try {
+      const token = await useUserStore.getState().getToken?.()
       const res = await fetch('/api/admin/plans', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify(formData),
       })
 

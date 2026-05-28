@@ -27,20 +27,30 @@ export async function POST(request, { params }) {
       return NextResponse.json({ error: 'Survey not found' }, { status: 404 })
     }
 
-    // Mark survey as completed
+    const { data: existingSurvey } = await supabaseAdmin
+      .from('user_surveys')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('survey_id', surveyId)
+      .single()
+
+    if (existingSurvey?.completed_at) {
+      return NextResponse.json({ success: true, completion: existingSurvey })
+    }
+
     const { data, error } = await supabaseAdmin
       .from('user_surveys')
       .upsert({
         user_id: user.id,
         survey_id: surveyId,
         completed_at: new Date().toISOString(),
-      })
+      }, { onConflict: ['user_id', 'survey_id'] })
       .select()
       .single()
 
     if (error) throw error
 
-    // Add reward to wallet
+    // Add reward to wallet only once
     if (survey.reward > 0) {
       const { data: wallet } = await supabaseAdmin
         .from('wallets')

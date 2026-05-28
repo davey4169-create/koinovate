@@ -1,4 +1,11 @@
-import { NextResponse } from 'next/server'
+﻿import { NextResponse } from 'next/server'
+
+const STARTER_REWARD = 5000
+const REFERRAL_BONUS = 2000
+
+function generateReferralCode() {
+  return `KOIN${Math.random().toString(36).slice(2, 8).toUpperCase()}`
+}
 
 export async function POST(request) {
   try {
@@ -19,16 +26,20 @@ export async function POST(request) {
       )
     }
 
-    const { supabase, supabaseAdmin } = await import('@/lib/supabase')
+    const { supabaseAdmin } = await import('@/lib/supabase')
 
     const forwarded = request.headers.get('x-forwarded-for') || ''
     const ip = forwarded.split(',')[0]?.trim() || 'unknown'
 
     if (ip !== 'unknown') {
-      const { count } = await supabaseAdmin
+      const { count, error: duplicateCountError } = await supabaseAdmin
         .from('users')
         .select('*', { count: 'exact', head: true })
         .eq('signup_ip', ip)
+
+      if (duplicateCountError) {
+        throw duplicateCountError
+      }
 
       if ((count || 0) >= 3) {
         return NextResponse.json(
@@ -64,29 +75,75 @@ export async function POST(request) {
 
     let referrerId = null
     if (referralCode?.trim()) {
-      const { data: referrer } = await supabaseAdmin
+      const { data: referrer, error: referrerError } = await supabaseAdmin
         .from('users')
         .select('id')
         .eq('referral_code', referralCode.trim().toUpperCase())
         .maybeSingle()
 
+      if (referrerError) {
+        throw referrerError
+      }
+
       if (referrer) referrerId = referrer.id
     }
 
-    await supabaseAdmin.from('users').insert({
+    const referralCodeValue = generateReferralCode()
+    const userPayload = {
       id: authData.user.id,
       email: email.toLowerCase().trim(),
       full_name: fullName.trim(),
       phone: phone?.trim() || null,
       signup_ip: ip,
       referred_by: referrerId,
+      referral_code: referralCodeValue,
+      membership_tier: 'free',
+      membership_active: false,
+      wallet_balance: STARTER_REWARD,
+      total_earned: STARTER_REWARD,
+    }
+
+    const { error: userError } = await supabaseAdmin.from('users').insert(userPayload)
+    if (userError) {
+      await supabaseAdmin.auth.admin.deleteUser(authData.user.id)
+      return NextResponse.json({ error: userError.message || 'Failed to create user profile.' }, { status: 500 })
+    }
+
+    const { error: walletError } = await supabaseAdmin.from('wallets').insert({
+      user_id: authData.user.id,
+      balance: STARTER_REWARD,
+      total_earned: STARTER_REWARD,
+      total_withdrawn: 0,
     })
+
+    if (walletError) {
+      await supabaseAdmin.from('users').delete().eq('id', authData.user.id)
+      await supabaseAdmin.auth.admin.deleteUser(authData.user.id)
+      return NextResponse.json({ error: walletError.message || 'Failed to create wallet.' }, { status: 500 })
+    }
 
     if (referrerId) {
       await supabaseAdmin.from('referrals').insert({
         referrer_id: referrerId,
         referred_id: authData.user.id,
+        reward_claimed: false,
       })
+
+      const { data: referrerWallet, error: referrerWalletError } = await supabaseAdmin
+        .from('wallets')
+        .select('*')
+        .eq('user_id', referrerId)
+        .single()
+
+      if (!referrerWalletError && referrerWallet) {
+        await supabaseAdmin
+          .from('wallets')
+          .update({
+            balance: (referrerWallet.balance || 0) + REFERRAL_BONUS,
+            total_earned: (referrerWallet.total_earned || 0) + REFERRAL_BONUS,
+          })
+          .eq('user_id', referrerId)
+      }
     }
 
     return NextResponse.json({

@@ -1,24 +1,244 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { useUserStore } from '@/store/userStore'
 
-const allUsers = [
-  { id:1,  name:'David Johnson',    email:'david@mail.com',   tier:'PULSE',    status:'Active',    balance:342500,  joined:'May 20, 2025', referrals:17, tasks:9  },
-  { id:2,  name:'Adaeze Obi',       email:'adaeze@mail.com',  tier:'MOMENTUM', status:'Active',    balance:891200,  joined:'May 18, 2025', referrals:42, tasks:12 },
-  { id:3,  name:'Emeka Nwachukwu',  email:'emeka@mail.com',   tier:'SPARK',    status:'Active',    balance:42000,   joined:'May 15, 2025', referrals:3,  tasks:5  },
-  { id:4,  name:'Fatima Hassan',    email:'fatima@mail.com',  tier:'PULSE',    status:'Suspended', balance:180500,  joined:'May 10, 2025', referrals:8,  tasks:0  },
-  { id:5,  name:'Chidi Eze',        email:'chidi@mail.com',   tier:'MOMENTUM', status:'Active',    balance:1240000, joined:'May 8, 2025',  referrals:61, tasks:12 },
-  { id:6,  name:'Ngozi Okonkwo',    email:'ngozi@mail.com',   tier:'SPARK',    status:'Active',    balance:28000,   joined:'May 5, 2025',  referrals:1,  tasks:4  },
-  { id:7,  name:'Yusuf Abdullahi',  email:'yusuf@mail.com',   tier:'PULSE',    status:'Active',    balance:215000,  joined:'Apr 30, 2025', referrals:14, tasks:11 },
-  { id:8,  name:'Amaka Obi',        email:'amaka@mail.com',   tier:'SPARK',    status:'Suspended', balance:5000,    joined:'Apr 28, 2025', referrals:0,  tasks:2  },
-  { id:9,  name:'Tunde Adeyemi',    email:'tunde@mail.com',   tier:'MOMENTUM', status:'Active',    balance:560000,  joined:'Apr 25, 2025', referrals:29, tasks:12 },
-  { id:10, name:'Kemi Olatunji',    email:'kemi@mail.com',    tier:'PULSE',    status:'Active',    balance:98000,   joined:'Apr 20, 2025', referrals:6,  tasks:10 },
-]
-
-const tc = { SPARK:'#a8b2d8', PULSE:'#64ffda', MOMENTUM:'#00b4d8' }
-const sc = { Active:'#64ffda', Suspended:'#ff8080' }
+const tierOptions = ['free', 'pulse', 'premium']
+const tierLabels = {
+  free: 'FREE',
+  pulse: 'PULSE',
+  premium: 'PREMIUM',
+}
+const tierColors = {
+  free: '#a8b2d8',
+  pulse: '#64ffda',
+  premium: '#00b4d8',
+}
 
 export default function AdminUsersPage() {
-  const [users, setUsers] = useState(allUsers)
+  const router = useRouter()
+  const user = useUserStore(state => state.user)
+  const [users, setUsers] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [search, setSearch] = useState('')
+  const [tierFilter, setTierFilter] = useState('ALL')
+  const [statusFilter, setStatusFilter] = useState('ALL')
+  const [selectedUser, setSelectedUser] = useState(null)
+  const [modalType, setModalType] = useState(null)
+  const [newTier, setNewTier] = useState('')
+  const [flash, setFlash] = useState('')
+
+  useEffect(() => {
+    if (user === null) return
+    if (!user || user.role !== 'admin') {
+      router.push('/user/dashboard')
+      return
+    }
+    fetchUsers()
+  }, [user, router])
+
+  const getAuthHeaders = async () => {
+    const token = await useUserStore.getState().getToken?.()
+    return token ? { Authorization: `Bearer ${token}` } : {}
+  }
+
+  const fetchUsers = async () => {
+    setLoading(true)
+    try {
+      const headers = await getAuthHeaders()
+      const res = await fetch('/api/admin/users', { headers })
+      if (!res.ok) {
+        const json = await res.json()
+        throw new Error(json.error || 'Failed to fetch users')
+      }
+      const data = await res.json()
+      setUsers(data.users || [])
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const filteredUsers = users.filter((item) => {
+    const searchMatch =
+      item.full_name?.toLowerCase().includes(search.toLowerCase()) ||
+      item.email?.toLowerCase().includes(search.toLowerCase())
+    const tierMatch = tierFilter === 'ALL' || item.membership_tier === tierFilter
+    const statusMatch =
+      statusFilter === 'ALL' ||
+      (statusFilter === 'ACTIVE' && item.membership_active) ||
+      (statusFilter === 'SUSPENDED' && !item.membership_active)
+    return searchMatch && tierMatch && statusMatch
+  })
+
+  const updateUser = async (id, updates) => {
+    try {
+      const headers = {
+        'Content-Type': 'application/json',
+        ...(await getAuthHeaders()),
+      }
+      const res = await fetch(`/api/admin/users/${id}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(updates),
+      })
+      if (!res.ok) {
+        const json = await res.json()
+        throw new Error(json.error || 'Update failed')
+      }
+      const json = await res.json()
+      setUsers((prev) => prev.map((user) => (user.id === id ? json.user : user)))
+      setFlash('✅ User updated successfully.')
+      setTimeout(() => setFlash(''), 3000)
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  const handleToggleStatus = (userItem) => {
+    updateUser(userItem.id, {
+      membership_active: !userItem.membership_active,
+    })
+  }
+
+  const handleSaveTier = () => {
+    if (!selectedUser || !newTier) return
+    updateUser(selectedUser.id, { membership_tier: newTier })
+    setModalType(null)
+  }
+
+  const handleShowTierModal = (userItem) => {
+    setSelectedUser(userItem)
+    setNewTier(userItem.membership_tier)
+    setModalType('tier')
+  }
+
+  if (!user || user.role !== 'admin') {
+    return null
+  }
+
+  return (
+    <div style={{ padding: 28 }}>
+      <div style={{ marginBottom: 22 }}>
+        <h1 style={{ fontSize: 28, margin: 0, color: '#e6f1ff' }}>Admin User Management</h1>
+        <p style={{ color: '#8892b0', marginTop: 8 }}>Review all users and make changes that apply across every account.</p>
+      </div>
+
+      {flash && (
+        <div style={{ marginBottom: 18, padding: 14, borderRadius: 16, background: '#152c44', color: '#64ffda' }}>{flash}</div>
+      )}
+
+      {error && (
+        <div style={{ marginBottom: 18, padding: 14, borderRadius: 16, background: '#3b1e26', color: '#ff6b6b' }}>{error}</div>
+      )}
+
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search users by name or email"
+          style={{ flex: 1, minWidth: 240, padding: 12, borderRadius: 14, border: '1px solid rgba(100,100,100,0.25)', background: '#08141e', color: '#e6f1ff' }}
+        />
+        <select
+          value={tierFilter}
+          onChange={(e) => setTierFilter(e.target.value)}
+          style={{ padding: 12, borderRadius: 14, border: '1px solid rgba(100,100,100,0.25)', background: '#08141e', color: '#e6f1ff' }}
+        >
+          <option value="ALL">All tiers</option>
+          {tierOptions.map((tier) => (
+            <option key={tier} value={tier}>{tierLabels[tier]}</option>
+          ))}
+        </select>
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          style={{ padding: 12, borderRadius: 14, border: '1px solid rgba(100,100,100,0.25)', background: '#08141e', color: '#e6f1ff' }}
+        >
+          <option value="ALL">All statuses</option>
+          <option value="ACTIVE">Active</option>
+          <option value="SUSPENDED">Suspended</option>
+        </select>
+      </div>
+
+      <div style={{ overflowX: 'auto', borderRadius: 20, background: '#07101a', border: '1px solid rgba(255,107,107,0.08)' }}>
+        <table style={{ width: '100%', minWidth: 900, borderCollapse: 'collapse' }}>
+          <thead>
+            <tr style={{ background: '#091521' }}>
+              <th style={{ padding: 14, color: '#8892b0', textAlign: 'left' }}>User</th>
+              <th style={{ padding: 14, color: '#8892b0', textAlign: 'left' }}>Email</th>
+              <th style={{ padding: 14, color: '#8892b0', textAlign: 'left' }}>Tier</th>
+              <th style={{ padding: 14, color: '#8892b0', textAlign: 'left' }}>Status</th>
+              <th style={{ padding: 14, color: '#8892b0', textAlign: 'left' }}>Joined</th>
+              <th style={{ padding: 14, color: '#8892b0', textAlign: 'left' }}>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr>
+                <td colSpan={6} style={{ padding: 40, textAlign: 'center', color: '#8892b0' }}>Loading users...</td>
+              </tr>
+            ) : filteredUsers.length === 0 ? (
+              <tr>
+                <td colSpan={6} style={{ padding: 40, textAlign: 'center', color: '#8892b0' }}>No matching users found.</td>
+              </tr>
+            ) : (
+              filteredUsers.map((item) => (
+                <tr key={item.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                  <td style={{ padding: 14, color: '#e6f1ff' }}>{item.full_name}</td>
+                  <td style={{ padding: 14, color: '#8892b0' }}>{item.email}</td>
+                  <td style={{ padding: 14 }}>
+                    <span style={{ padding: '6px 12px', borderRadius: 999, background: `${tierColors[item.membership_tier]}15`, color: tierColors[item.membership_tier], fontWeight: 700, textTransform: 'uppercase', fontSize: 12 }}>
+                      {tierLabels[item.membership_tier] || item.membership_tier}
+                    </span>
+                  </td>
+                  <td style={{ padding: 14, color: item.membership_active ? '#64ffda' : '#ff8080' }}>{item.membership_active ? 'Active' : 'Suspended'}</td>
+                  <td style={{ padding: 14, color: '#8892b0' }}>{new Date(item.created_at).toLocaleDateString()}</td>
+                  <td style={{ padding: 14, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <button onClick={() => handleToggleStatus(item)} style={{ padding: '8px 12px', background: item.membership_active ? '#1f2732' : '#0f2d33', border: '1px solid rgba(100,255,218,0.15)', color: '#e6f1ff', borderRadius: 12, cursor: 'pointer' }}>
+                      {item.membership_active ? 'Suspend' : 'Activate'}
+                    </button>
+                    <button onClick={() => handleShowTierModal(item)} style={{ padding: '8px 12px', background: '#121c2a', border: '1px solid rgba(100,178,218,0.15)', color: '#64ffda', borderRadius: 12, cursor: 'pointer' }}>
+                      Change Tier
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {modalType === 'tier' && selectedUser && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.72)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <div style={{ width: 420, maxWidth: '100%', borderRadius: 24, background: '#08141e', border: '1px solid rgba(255,255,255,0.08)', padding: 28 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+              <h2 style={{ margin: 0, color: '#e6f1ff', fontSize: 20 }}>Change Tier</h2>
+              <button onClick={() => setModalType(null)} style={{ border: 'none', background: 'transparent', color: '#8892b0', cursor: 'pointer', fontSize: 18 }}>✕</button>
+            </div>
+            <p style={{ color: '#8892b0', marginBottom: 22 }}>Update the tier for <strong style={{ color: '#fff' }}>{selectedUser.full_name}</strong>.</p>
+
+            <div style={{ display: 'grid', gap: 12, marginBottom: 20 }}>
+              {tierOptions.map((tier) => (
+                <button key={tier} onClick={() => setNewTier(tier)} style={{ padding: 14, borderRadius: 16, border: newTier === tier ? `1px solid ${tierColors[tier]}` : '1px solid rgba(255,255,255,0.08)', background: newTier === tier ? `${tierColors[tier]}15` : '#0d1822', color: '#e6f1ff', textAlign: 'left', cursor: 'pointer' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>{tierLabels[tier]}</span>
+                    {newTier === tier && <span style={{ color: tierColors[tier] }}>Selected</span>}
+                  </div>
+                </button>
+              ))}
+            </div>
+            <button onClick={handleSaveTier} style={{ width: '100%', padding: 14, borderRadius: 16, border: 'none', background: '#3b82f6', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>
+              Save Tier
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
   const [search, setSearch] = useState('')
   const [tierF, setTierF] = useState('ALL')
   const [statF, setStatF] = useState('ALL')

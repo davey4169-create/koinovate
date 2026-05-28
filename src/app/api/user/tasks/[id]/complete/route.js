@@ -27,21 +27,45 @@ export async function POST(request, { params }) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 })
     }
 
-    // Mark task as completed
-    const { data, error } = await supabaseAdmin
+    const { data: existingTask } = await supabaseAdmin
       .from('user_tasks')
-      .insert({
-        user_id: user.id,
-        task_id: taskId,
-        completed_at: new Date().toISOString(),
-      })
-      .select()
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('task_id', taskId)
       .single()
 
-    if (error && error.code !== 'PGRST116') throw error // Ignore duplicate key error
+    if (existingTask?.completed_at) {
+      return NextResponse.json({ success: true, completion: existingTask })
+    }
 
-    // Add reward to wallet
-    if (task.reward > 0) {
+    let completion
+    if (existingTask) {
+      const { data, error } = await supabaseAdmin
+        .from('user_tasks')
+        .update({ completed_at: new Date().toISOString() })
+        .eq('id', existingTask.id)
+        .select()
+        .single()
+
+      if (error) throw error
+      completion = data
+    } else {
+      const { data, error } = await supabaseAdmin
+        .from('user_tasks')
+        .insert({
+          user_id: user.id,
+          task_id: taskId,
+          completed_at: new Date().toISOString(),
+        })
+        .select()
+        .single()
+
+      if (error) throw error
+      completion = data
+    }
+
+    // Add reward to wallet only once
+    if (task.reward > 0 && !existingTask?.completed_at) {
       const { data: wallet } = await supabaseAdmin
         .from('wallets')
         .select('*')
@@ -59,7 +83,7 @@ export async function POST(request, { params }) {
       }
     }
 
-    return NextResponse.json({ success: true, completion: data || {} })
+    return NextResponse.json({ success: true, completion })
   } catch (err) {
     console.error('[task complete error]', err)
     return NextResponse.json({ error: 'Failed to complete task' }, { status: 500 })
